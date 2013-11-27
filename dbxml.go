@@ -28,14 +28,10 @@ type Db struct {
 	opened bool
 	db     C.c_dbxml
 	lock   sync.Mutex
-	next   uint64
-	docss  map[uint64]*Docs
 }
 
 // An iterator over xml documents in the database.
 type Docs struct {
-	db      *Db
-	id      uint64
 	started bool
 	opened  bool
 	docs    C.c_dbxml_docs
@@ -63,7 +59,6 @@ func Open(filename string) (*Db, error) {
 		C.c_dbxml_free(db.db)
 		return db, err
 	}
-	db.docss = make(map[uint64]*Docs)
 	db.opened = true
 	runtime.SetFinalizer(db, (*Db).Close)
 	return db, nil
@@ -76,11 +71,6 @@ func (db *Db) Close() {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 	if db.opened {
-		for id := uint64(0); id < db.next; id++ {
-			if _, ok := db.docss[id]; ok {
-				db.docss[id].Close()
-			}
-		}
 		C.c_dbxml_free(db.db)
 		db.opened = false
 	}
@@ -222,10 +212,6 @@ func (db *Db) All() (*Docs, error) {
 		return docs, errclosed
 	}
 	docs.docs = C.c_dbxml_get_all(db.db)
-	docs.db = db
-	docs.id = db.next
-	db.next++
-	db.docss[docs.id] = docs
 	runtime.SetFinalizer(docs, (*Docs).Close)
 	docs.opened = true
 	return docs, nil
@@ -258,10 +244,6 @@ func (db *Db) Query(query string) (*Docs, error) {
 		err := errors.New(C.GoString(C.c_dbxml_errstring(db.db)))
 		return docs, err
 	}
-	docs.db = db
-	docs.id = db.next
-	db.next++
-	db.docss[docs.id] = docs
 	runtime.SetFinalizer(docs, (*Docs).Close)
 	docs.opened = true
 	return docs, nil
@@ -274,30 +256,32 @@ func (docs *Docs) Next() bool {
 	if !docs.opened {
 		return false
 	}
-	docs.started = true
 	if C.c_dbxml_docs_next(docs.docs) == 0 {
 		docs.close()
 		return false
 	}
+	docs.started = true
 	return true
 }
 
 // Get name of current xml document after call to docs.Next().
 func (docs *Docs) Name() string {
+	return docs.getNameContent(true)
+}
+
+// Get content of current xml document after call to docs.Next().
+func (docs *Docs) Content() string {
+	return docs.getNameContent(false)
+}
+
+func (docs *Docs) getNameContent(getname bool) string {
 	docs.lock.Lock()
 	defer docs.lock.Unlock()
 	if !(docs.opened && docs.started) {
 		return ""
 	}
-	return C.GoString(C.c_dbxml_docs_name(docs.docs))
-}
-
-// Get content of current xml document after call to docs.Next().
-func (docs *Docs) Content() string {
-	docs.lock.Lock()
-	defer docs.lock.Unlock()
-	if !(docs.opened && docs.started) {
-		return ""
+	if getname {
+		return C.GoString(C.c_dbxml_docs_name(docs.docs))
 	}
 	return C.GoString(C.c_dbxml_docs_content(docs.docs))
 }
@@ -323,7 +307,5 @@ func (docs *Docs) close() {
 	if docs.opened {
 		C.c_dbxml_docs_free(docs.docs)
 		docs.opened = false
-		delete(docs.db.docss, docs.id)
-		docs.db = nil // remove reference so the garbage collector can do its work
 	}
 }
