@@ -13,7 +13,11 @@ extern "C" {
 	DbXml::XmlContainerConfig config;
 	bool error;
 	std::string errstring;
+    };
+
+    struct c_dbxml_result_t {
 	std::string result;
+	bool error;
     };
 
     struct c_dbxml_docs_t {
@@ -23,6 +27,8 @@ extern "C" {
 	bool more;
 	std::string name;
 	std::string content;
+	bool error;
+	std::string errstring;
     };
 
     c_dbxml c_dbxml_open(char const *filename)
@@ -32,27 +38,23 @@ extern "C" {
 	db = new c_dbxml_t;
 
 	for (int i = 0; i < 2; i++) {
-
-	    db->error = false;
-	    db->errstring = "";
-
-		try {
-		    db->context = db->manager.createUpdateContext();
-		    if (i == 1) {
-			db->config.setReadOnly(true);
-		    }
-		    db->container = db->manager.existsContainer(filename) ?
+	    try {
+		db->context = db->manager.createUpdateContext();
+		if (i == 1) {
+		    db->config.setReadOnly(true);
+		}
+		db->container = db->manager.existsContainer(filename) ?
 		    db->manager.openContainer(filename, db->config) :
 		    db->manager.createContainer(filename);
-		    if (!db->container.addAlias(ALIAS)) {
-			db->errstring = "Unable to add alias \"" ALIAS "\"";
-			db->error = true;
-		    }
-		} catch (DbXml::XmlException &xe) {
-		    db->errstring = xe.what();
+		if (!db->container.addAlias(ALIAS)) {
+		    db->errstring = "Unable to add alias \"" ALIAS "\"";
 		    db->error = true;
 		}
-
+		db->error = false;
+	    } catch (DbXml::XmlException &xe) {
+		db->errstring = xe.what();
+		db->error = true;
+	    }
 	    if (db->error == false) {
 		break;
 	    }
@@ -76,10 +78,25 @@ extern "C" {
 	return db->errstring.c_str();
     }
 
-    int c_dbxml_put_file(c_dbxml db, char const * filename, int replace)
+    void c_dbxml_result_free(c_dbxml_result r)
     {
-	db->errstring = "";
-	db->error = false;
+	delete r;
+    }
+
+    int c_dbxml_result_error(c_dbxml_result r)
+    {
+	return r->error ? 1 : 0;
+    }
+
+    char const *c_dbxml_result_string(c_dbxml_result r)
+    {
+	return r->result.c_str();
+    }
+
+    c_dbxml_result c_dbxml_put_file(c_dbxml db, char const * filename, int replace)
+    {
+	c_dbxml_result r;
+	r = new c_dbxml_result_t;
 
 	if (replace) {
 	    try {
@@ -91,22 +108,20 @@ extern "C" {
         try {
             DbXml::XmlInputStream *is = db->manager.createLocalFileInputStream(filename);
             db->container.putDocument(filename, is, db->context);
+	    r->error = false;
         } catch (DbXml::XmlException &xe) {
-	    db->error = true;
-	    db->errstring = xe.what();
-	    return 0;
+	    r->error = true;
+	    r->result = xe.what();
         }
 
-	return 1;
+	return r;
     }
 
-    /* replace if replace != 0
-     * return 0 bij fout
-     */
-    int c_dbxml_put_xml(c_dbxml db, char const *name, char const *data, int replace)
+    // replace if replace != 0
+    c_dbxml_result c_dbxml_put_xml(c_dbxml db, char const *name, char const *data, int replace)
     {
-	db->errstring = "";
-	db->error = false;
+	c_dbxml_result r;
+	r = new c_dbxml_result_t;
 
 	if (replace) {
 	    try {
@@ -118,20 +133,18 @@ extern "C" {
 
         try {
             db->container.putDocument(name, data, db->context);
+	    r->error = false;
         } catch (DbXml::XmlException &xe) {
-	    db->error = true;
-	    db->errstring = xe.what();
-	    return 0;
+	    r->error = true;
+	    r->result = xe.what();
         }
-	return 1;
+	return r;
     }
 
-    /* replace if replace != 0
-     * return 0 bij fout
-     */
-    int c_dbxml_merge(c_dbxml db, char const * dbxmlfile, int replace) {
-	db->errstring = "";
-	db->error = false;
+    // replace if replace != 0
+    c_dbxml_result c_dbxml_merge(c_dbxml db, char const * dbxmlfile, int replace) {
+	c_dbxml_result r;
+	r = new c_dbxml_result_t;
 
 	DbXml::XmlContainer input = db->manager.openContainer(dbxmlfile);
 	DbXml::XmlDocument doc;
@@ -146,45 +159,44 @@ extern "C" {
 	    }
 	    try {
 		db->container.putDocument(doc, db->context);
+		r->error = false;
 	    } catch (DbXml::XmlException &xe) {
-		db->error = true;
-		db->errstring = xe.what();
-		return 0;
+		r->error = true;
+		r->result = xe.what();
+		return r;
 	    }
 	}
-	return 1;
+	return r;
     }
 
-    int c_dbxml_remove(c_dbxml db, char const * filename)
+    c_dbxml_result c_dbxml_remove(c_dbxml db, char const * filename)
     {
-	db->errstring = "";
-	db->error = false;
+	c_dbxml_result r;
+	r = new c_dbxml_result_t;
 
 	try {
 	    db->container.deleteDocument(filename, db->context);
+	    r->error = false;
         } catch (DbXml::XmlException &xe) {
-	    db->error = true;
-	    db->errstring = xe.what();
-	    return 0;
+	    r->error = true;
+	    r->result = xe.what();
 	}
-	return 1;
+	return r;
     }
 
-
-    char const * c_dbxml_get(c_dbxml db, char const * name)
+    c_dbxml_result c_dbxml_get(c_dbxml db, char const * name)
     {
-	db->errstring = "";
-	db->error = false;
-
+	c_dbxml_result r;
+	r = new c_dbxml_result_t;
 	try {
 	    DbXml::XmlDocument doc = db->container.getDocument(name);
-	    doc.getContent(db->result);
-	    return db->result.c_str();
+	    doc.getContent(r->result);
+	    r->error = false;
 	} catch (DbXml::XmlException &xe) {
-	    db->errstring = xe.what();
-	    db->error = true;
-	    return db->errstring.c_str();
+	    r->result = xe.what();
+	    r->error = true;
 	}
+	return r;
     }
 
     unsigned long long c_dbxml_size(c_dbxml db)
@@ -194,21 +206,16 @@ extern "C" {
 
     c_dbxml_docs c_dbxml_get_all(c_dbxml db)
     {
-	db->errstring = "";
-	db->error = false;
-
 	c_dbxml_docs docs;
 	docs = new c_dbxml_docs_t;
 	docs->it = db->container.getAllDocuments(DbXml::DBXML_LAZY_DOCS);
 	docs->more = true;
+	docs->error = false;
 	return docs;
     }
 
     c_dbxml_docs c_dbxml_get_query(c_dbxml db, char const *query)
     {
-	db->errstring = "";
-	db->error = false;
-
 	c_dbxml_docs docs;
 	docs = new c_dbxml_docs_t;
 	docs->more = true;
@@ -220,14 +227,24 @@ extern "C" {
 					 docs->context,
 					 DbXml::DBXML_LAZY_DOCS | DbXml::DBXML_WELL_FORMED_ONLY
 					 );
-
+	    docs->error = false;
 	} catch (DbXml::XmlException const &xe) {
 	    docs->more = false;
-	    db->error = true;
-	    db->errstring = xe.what();
+	    docs->error = true;
+	    docs->errstring = xe.what();
 	}
 
 	return docs;
+    }
+
+    int c_dbxml_get_query_error(c_dbxml_docs docs)
+    {
+	return docs->error ? 1 : 0;
+    }
+
+    char const *c_dbxml_get_query_errstring(c_dbxml_docs docs)
+    {
+	return docs->errstring.c_str();
     }
 
     int c_dbxml_docs_next(c_dbxml_docs docs)

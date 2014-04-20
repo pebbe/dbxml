@@ -93,8 +93,10 @@ func (db *Db) PutFile(filename string, replace bool) error {
 	if replace {
 		repl = 1
 	}
-	if C.c_dbxml_put_file(db.db, cs, repl) == 0 {
-		return errors.New(C.GoString(C.c_dbxml_errstring(db.db)))
+	r := C.c_dbxml_put_file(db.db, cs, repl)
+	defer C.c_dbxml_result_free(r)
+	if C.c_dbxml_result_error(r) != 0 {
+		return errors.New(C.GoString(C.c_dbxml_result_string(r)))
 	}
 	return nil
 }
@@ -116,8 +118,10 @@ func (db *Db) PutXml(name string, data string, replace bool) error {
 	if replace {
 		repl = 1
 	}
-	if C.c_dbxml_put_xml(db.db, csname, csdata, repl) == 0 {
-		return errors.New(C.GoString(C.c_dbxml_errstring(db.db)))
+	r := C.c_dbxml_put_xml(db.db, csname, csdata, repl)
+	defer C.c_dbxml_result_free(r)
+	if C.c_dbxml_result_error(r) != 0 {
+		return errors.New(C.GoString(C.c_dbxml_result_string(r)))
 	}
 	return nil
 }
@@ -137,8 +141,10 @@ func (db *Db) Merge(filename string, replace bool) error {
 	if replace {
 		repl = 1
 	}
-	if C.c_dbxml_merge(db.db, cs, repl) == 0 {
-		return errors.New(C.GoString(C.c_dbxml_errstring(db.db)))
+	r:= C.c_dbxml_merge(db.db, cs, repl)
+	defer C.c_dbxml_result_free(r)
+	if C.c_dbxml_result_error(r) != 0 {
+		return errors.New(C.GoString(C.c_dbxml_result_string(r)))
 	}
 	return nil
 }
@@ -154,8 +160,10 @@ func (db *Db) Remove(name string) error {
 
 	cs := C.CString(name)
 	defer C.free(unsafe.Pointer(cs))
-	if C.c_dbxml_remove(db.db, cs) == 0 {
-		return errors.New(C.GoString(C.c_dbxml_errstring(db.db)))
+	r := C.c_dbxml_remove(db.db, cs)
+	defer C.c_dbxml_result_free(r)
+	if C.c_dbxml_result_error(r) != 0 {
+		return errors.New(C.GoString(C.c_dbxml_result_string(r)))
 	}
 	return nil
 }
@@ -173,8 +181,11 @@ func (db *Db) Get(name string) (string, error) {
 
 	cs := C.CString(name)
 	defer C.free(unsafe.Pointer(cs))
-	s := C.GoString(C.c_dbxml_get(db.db, cs))
-	if C.c_dbxml_error(db.db) != 0 {
+
+	r := C.c_dbxml_get(db.db, cs)
+	defer C.c_dbxml_result_free(r)
+	s := C.GoString(C.c_dbxml_result_string(r))
+	if C.c_dbxml_result_error(r) != 0 {
 		return "", errors.New(s)
 	}
 	return s, nil
@@ -240,9 +251,8 @@ func (db *Db) Query(query string) (*Docs, error) {
 	cs := C.CString(query)
 	defer C.free(unsafe.Pointer(cs))
 	docs.docs = C.c_dbxml_get_query(db.db, cs)
-	if C.c_dbxml_error(db.db) != 0 {
-		err := errors.New(C.GoString(C.c_dbxml_errstring(db.db)))
-		return docs, err
+	if C.c_dbxml_get_query_error(docs.docs) != 0 {
+		return docs, errors.New(C.GoString(C.c_dbxml_get_query_errstring(docs.docs)))
 	}
 	runtime.SetFinalizer(docs, (*Docs).Close)
 	docs.opened = true
