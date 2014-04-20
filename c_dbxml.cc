@@ -10,6 +10,7 @@ extern "C" {
 	DbXml::XmlManager manager;
 	DbXml::XmlUpdateContext context;
 	DbXml::XmlContainer container;
+	DbXml::XmlContainerConfig config;
 	bool error;
 	std::string errstring;
 	std::string result;
@@ -30,21 +31,31 @@ extern "C" {
 
 	db = new c_dbxml_t;
 
-	db->error = false;
-	db->errstring = "";
+	for (int i = 0; i < 2; i++) {
 
-	try {
-	    db->context = db->manager.createUpdateContext();
-	    db->container = db->manager.existsContainer(filename) ?
-		db->manager.openContainer(filename) :
-		db->manager.createContainer(filename);
-	    if (!db->container.addAlias(ALIAS)) {
-		db->errstring = "Unable to add alias \"" ALIAS "\"";
-		db->error = true;
+	    db->error = false;
+	    db->errstring = "";
+
+		try {
+		    db->context = db->manager.createUpdateContext();
+		    if (i == 1) {
+			db->config.setReadOnly(true);
+		    }
+		    db->container = db->manager.existsContainer(filename) ?
+		    db->manager.openContainer(filename, db->config) :
+		    db->manager.createContainer(filename);
+		    if (!db->container.addAlias(ALIAS)) {
+			db->errstring = "Unable to add alias \"" ALIAS "\"";
+			db->error = true;
+		    }
+		} catch (DbXml::XmlException &xe) {
+		    db->errstring = xe.what();
+		    db->error = true;
+		}
+
+	    if (db->error == false) {
+		break;
 	    }
-	} catch (DbXml::XmlException &xe) {
-	    db->errstring = xe.what();
-	    db->error = true;
 	}
 
 	return db;
