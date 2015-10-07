@@ -455,10 +455,3 @@ func Check(query string) error {
 	}
 	return nil
 }
-
-// Get DbXml version
-func Version() (major, minor, patch int) {
-	var majorp, minorp, patchp C.int
-	C.c_dbxml_version(&majorp, &minorp, &patchp)
-	return int(majorp), int(minorp), int(patchp)
-}

@@ -67,8 +67,6 @@ extern "C" {
 
     c_dbxml_result c_dbxml_check(char const *query);
 
-    void c_dbxml_version(int *major, int *minor, int *patch);
-
 #ifdef __cplusplus
 }
 #endif
