@@ -64,7 +64,6 @@ extern "C" {
 		} else {
 		    db->config.setReadOnly(true);
 		}
-		db->config.setNoMMap(true); // EXPERIMENTAL
 		db->container = db->manager.openContainer(filename, db->config);
 		db->error = false;
 		if (!db->container.addAlias(ALIAS)) {
