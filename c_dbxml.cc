@@ -234,13 +234,17 @@ extern "C" {
 	return docs;
     }
 
-    c_dbxml_query c_dbxml_prepare_query(c_dbxml db, char const *query)
+    c_dbxml_query c_dbxml_prepare_query(c_dbxml db, char const *query, char const **namespaces)
     {
+	int i;
 	c_dbxml_query q;
 	q = new c_dbxml_query_t;
 	try {
 	    q->context = db->manager.createQueryContext(DbXml::XmlQueryContext::LiveValues, DbXml::XmlQueryContext::Lazy);
 	    q->context.setDefaultCollection(ALIAS);
+	    for (i = 0; namespaces[i]; i += 2) {
+		q->context.setNamespace(namespaces[i], namespaces[i+1]);
+	    }
 	    q->expression = db->manager.prepare(std::string("collection('" ALIAS "')") + query, q->context);
 	    q->error = false;
 	    if (q->expression.isUpdateExpression()) {
@@ -344,6 +348,7 @@ extern "C" {
 
     void c_dbxml_query_free(c_dbxml_query query)
     {
+	query->context.clearNamespaces(); // is this necessary?
 	delete query;
     }
 
