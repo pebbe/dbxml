@@ -478,7 +478,7 @@ func (query *Query) Close() {
 //. Check
 
 // Check if query is valid without opening a database.
-func Check(query string) error {
+func Check(query string, namespaces ...Namespace) error {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return errempty
@@ -488,7 +488,20 @@ func Check(query string) error {
 	}
 	cs := C.CString(query)
 	defer C.free(unsafe.Pointer(cs))
-	r := C.c_dbxml_check(cs)
+
+	ns := make([]*_Ctype_char, 2*len(namespaces)+1)
+	for i, n := range namespaces {
+		ns[2*i] = C.CString(n.Prefix)
+		ns[2*i+1] = C.CString(n.Uri)
+	}
+
+	r := C.c_dbxml_check(cs, &ns[0])
+
+	for i := range namespaces {
+		C.free(unsafe.Pointer(ns[2*i]))
+		C.free(unsafe.Pointer(ns[2*i+1]))
+	}
+
 	defer C.c_dbxml_result_free(r)
 	if C.c_dbxml_result_error(r) != 0 {
 		return errors.New(C.GoString(C.c_dbxml_result_string(r)))

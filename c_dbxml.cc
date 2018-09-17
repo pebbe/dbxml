@@ -357,15 +357,19 @@ extern "C" {
 	query->context.interruptQuery();
     }
 
-    c_dbxml_result c_dbxml_check(char const *query)
+    c_dbxml_result c_dbxml_check(char const *query, char const **namespaces)
     {
 	c_dbxml_result r;
 	r = new c_dbxml_result_t;
+	int i;
 	try {
 	    DbXml::XmlManager manager;
 	    DbXml::XmlQueryContext context;
 	    DbXml::XmlQueryExpression expr;
 	    context = manager.createQueryContext(DbXml::XmlQueryContext::LiveValues, DbXml::XmlQueryContext::Lazy);
+	    for (i = 0; namespaces[i]; i += 2) {
+		context.setNamespace(namespaces[i], namespaces[i+1]);
+	    }
 	    expr = manager.prepare(std::string(query), context);
 	    r->error = false;
 	    if (expr.isUpdateExpression()) {
