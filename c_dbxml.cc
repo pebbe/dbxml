@@ -376,6 +376,7 @@ extern "C" {
 		r->result = "Update Expressions are not allowed";
 		r->error = true;
 	    }
+	    context.clearNamespaces(); // is this necessary?
 	} catch (DbXml::XmlException const &xe) {
 	    r->result = xe.what();
 	    r->error = true;
